@@ -1,8 +1,54 @@
-from fastapi import FastAPI, Query, Path, Body, Cookie
+from fastapi import FastAPI, Query, Path, Body, Cookie, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, HttpUrl, EmailStr
 from enum import Enum
 
+from guide import api, api_second
+
 app = FastAPI()
+
+app.include_router(api.router)
+app.include_router(api_second.router)
+
+#Override http exception
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=jsonable_encoder({'detail': exc.errors(), ' body': exc.body})
+    )
+
+
+class ExceptionItem(BaseModel):
+    title: str
+    size: int
+
+
+@app.post('/api/exception_override/')
+async def exception_func(item: ExceptionItem):
+    return item
+
+
+class UnicornException(Exception):
+    def __init__(self, name: str):
+        self.name = name
+
+
+@app.exception_handler(UnicornException)
+async def unicorn_exception_handler(request: Request, exc: UnicornException):
+    return JSONResponse(
+        status_code=418,
+        content={'message': f'Something went wrong. Bad names: {exc.name}'}
+    )
+
+
+@app.get('/unicorn/{name}')
+async def read_unicorn(name: str):
+    if name == 'Mike':
+        raise UnicornException(name=name)
+    return {'unicorn_name': name}
 
 
 class Name(str, Enum):
@@ -79,6 +125,28 @@ class NewTestItem(BaseModel):
     tax: float = 10.5
     tags: list[str] = []
 
+class UserInDB(BaseModel):
+    username: str
+    hashed_password: str
+    email: EmailStr
+    full_name: str | None = None
+
+
+def fake_password_hasher(raw_password: str):
+    return "supersecret" + raw_password
+
+
+def fake_save_user(user_in: UserIn):
+    hashed_password = fake_password_hasher(user_in.password)
+    user_in_db = UserInDB(**user_in.dict(), hashed_password=hashed_password)
+    print("User saved! ..not really")
+    return user_in_db
+
+
+@app.post("/user/", response_model=UserOut)
+async def create_user(user_in: UserIn):
+    user_saved = fake_save_user(user_in)
+    return user_saved
 
 items = {
     "foo": {"name": "Foo", "price": 50.2},
