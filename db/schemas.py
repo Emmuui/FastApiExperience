@@ -10,7 +10,7 @@ class ItemCreate(ItemBase):
     pass
 
 
-class Item(ItemBase):
+class FakeItem(ItemBase):
     id: int
     owner_id: int
 
@@ -26,10 +26,10 @@ class UserCreate(UserBase):
     password: str
 
 
-class User(UserBase):
+class FakeUser(UserBase):
     id: int
     is_active: bool
-    items: list[Item] = []
+    items: list[FakeItem] = []
 
     class Config:
         orm_mode = True
